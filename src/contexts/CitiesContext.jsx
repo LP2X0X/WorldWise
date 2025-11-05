@@ -8,37 +8,41 @@ const initialState = {
   cities: [],
   isLoading: false,
   currentCity: {},
+  error: "",
 };
 
 function reducer(state, action) {
   switch (action.type) {
-    case "fetchedCity":
+    case "city/loaded":
       return { ...state, isLoading: false, currentCity: action.payload };
-    case "fetchedCities":
+    case "cities/loaded":
       return { ...state, isLoading: false, cities: action.payload };
-    case "createdCity":
+    case "city/created":
       return {
         ...state,
         isLoading: false,
         cities: [...state.cities, action.payload],
+        currentCity: action.payload,
       };
-    case "deleteCity":
+    case "city/deleted":
       return {
         ...state,
         isLoading: false,
         cities: state.cities.filter((city) => city.id !== action.payload),
+        currentCity: {},
       };
     case "loading":
       return { ...state, isLoading: true };
-    case "doneLoading":
-      return { ...state, isLoading: false };
+    case "rejected":
+      console.log(action.payload);
+      return { ...state, isLoading: false, error: action.payload };
     default:
       throw new Error("Unknown action type...");
   }
 }
 
 function CitiesProvider({ children }) {
-  const [{ cities, isLoading, currentCity }, dispatch] = useReducer(
+  const [{ cities, isLoading, currentCity, error }, dispatch] = useReducer(
     reducer,
     initialState
   );
@@ -52,11 +56,9 @@ function CitiesProvider({ children }) {
           throw new Error("There is something wrong when fetching the data...");
         }
         let data = await res.json();
-        dispatch({ type: "fetchedCities", payload: data });
+        dispatch({ type: "cities/loaded", payload: data });
       } catch (err) {
-        console.log(err);
-      } finally {
-        dispatch({ type: "doneLoading" });
+        dispatch({ type: "rejected", payload: err.message });
       }
     }
 
@@ -65,6 +67,10 @@ function CitiesProvider({ children }) {
   }, []);
 
   async function getCity(id) {
+    if (Number(id) === currentCity) {
+      return;
+    }
+
     try {
       dispatch({ type: "loading" });
       const res = await fetch(`${BASE_URL}/cities/${id}`);
@@ -72,11 +78,9 @@ function CitiesProvider({ children }) {
         throw new Error("There is something wrong when fetching city data!");
       }
       const data = await res.json();
-      dispatch({ type: "fetchedCity", payload: data });
+      dispatch({ type: "city/loaded", payload: data });
     } catch (err) {
-      console.log(err);
-    } finally {
-      dispatch({ type: "doneLoading" });
+      dispatch({ type: "rejected", payload: err.message });
     }
   }
 
@@ -95,11 +99,9 @@ function CitiesProvider({ children }) {
       }
       // Get the new city WITH the ID
       const data = await res.json();
-      dispatch({ type: "createdCity", payload: data });
+      dispatch({ type: "city/created", payload: data });
     } catch (err) {
-      console.log(err);
-    } finally {
-      dispatch({ type: "doneLoading" });
+      dispatch({ type: "rejected", payload: err.message });
     }
   }
 
@@ -114,11 +116,9 @@ function CitiesProvider({ children }) {
           "There is something wrong when delete city data on the server!"
         );
       }
-      dispatch({ type: "deleteCity", payload: id });
+      dispatch({ type: "city/deleted", payload: id });
     } catch (err) {
-      console.log(err);
-    } finally {
-      dispatch({ type: "doneLoading" });
+      dispatch({ type: "rejected", payload: err.message });
     }
   }
 
@@ -128,6 +128,7 @@ function CitiesProvider({ children }) {
         cities,
         isLoading,
         currentCity,
+        error,
         getCity,
         createCity,
         deleteCity,
